@@ -1,0 +1,12 @@
+fr.univtln.lhd.controllers
+fr.univtln.lhd.exceptions
+fr.univtln.lhd.facade
+fr.univtln.lhd.model.entities.dao
+fr.univtln.lhd.model.entities.dao.slots
+fr.univtln.lhd.model.entities.dao.users
+fr.univtln.lhd.model.entities.slots
+fr.univtln.lhd.model.entities.users
+fr.univtln.lhd.view
+fr.univtln.lhd.view.authentification
+fr.univtln.lhd.view.edt
+fr.univtln.lhd.view.slots
