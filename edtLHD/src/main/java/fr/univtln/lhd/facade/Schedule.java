@@ -10,13 +10,12 @@ import fr.univtln.lhd.model.entities.dao.users.ProfessorDAO;
 import fr.univtln.lhd.model.entities.dao.users.StudentDAO;
 import fr.univtln.lhd.model.entities.slots.Classroom;
 import fr.univtln.lhd.model.entities.slots.Group;
+import fr.univtln.lhd.model.entities.slots.Slot;
 import fr.univtln.lhd.model.entities.slots.Subject;
 import fr.univtln.lhd.model.entities.users.Admin;
 import fr.univtln.lhd.model.entities.users.Professor;
 import fr.univtln.lhd.model.entities.users.Student;
-import fr.univtln.lhd.model.entities.slots.Slot;
 import fr.univtln.lhd.model.entities.users.User;
-import fr.univtln.lhd.view.authentification.Auth;
 import lombok.extern.slf4j.Slf4j;
 import org.threeten.extra.Interval;
 
@@ -33,13 +32,11 @@ import java.util.*;
  */
 @Slf4j
 public class Schedule implements Observable {
-    private static Map<String, List<Observer>> observerMap = new HashMap<>();
+    public static final String SLOT_EVENT = "slotEvent";
     private static final String ERR_MSG_DELETE_UPDATE = "this entity doesn't seem persisted";
 
     private static final Schedule schedule = new Schedule();
-
-    public static final String SLOT_EVENT = "slotEvent";
-
+    private static Map<String, List<Observer>> observerMap = new HashMap<>();
 
     /**
      * Get Professor of Database via email & password
@@ -157,7 +154,7 @@ public class Schedule implements Observable {
         }
         SlotDAO dao = SlotDAO.getInstance();
         try {
-            slotList.addAll(dao.getSlotOfAProfessor(professor));
+            slotList.addAll(dao.getSlotOfAProfessor(professor, timerange));
         } catch (SQLException e) {
             log.error(e.getMessage());
         }
@@ -182,7 +179,7 @@ public class Schedule implements Observable {
         for (Group group :
                 student.getStudentGroup()) {
             try {
-                List<Slot> allSlotOfGroup = dao.getSlotOfGroup(group);
+                List<Slot> allSlotOfGroup = dao.getSlotOfGroup(group, timerange);
                 slotList.addAll(allSlotOfGroup);
             } catch (SQLException e) {
                 log.error(e.getMessage());
@@ -203,7 +200,7 @@ public class Schedule implements Observable {
      * @return a List of slot that is in the timerange and with this group
      */
     public static List<Slot> getSchedule(Group group, Interval timerange) {
-        if ( group ==null || group.getId() < 0) {
+        if (group == null || group.getId() < 0) {
             return new ArrayList<>();
         }//Might be an edge case
         SlotDAO dao = SlotDAO.getInstance();
@@ -215,9 +212,11 @@ public class Schedule implements Observable {
         }
         return schedule.filterEverySlotOutsideTimerange(allSlotOfGroup, timerange);
     }
+
     /**
      * Round to certain number of decimals
      * Author:jav-rock
+     *
      * @param d
      * @param decimalPlace
      * @return
@@ -250,22 +249,23 @@ public class Schedule implements Observable {
         for (Slot xslot :
                 listOfSlot) {
             if (xslot.getSubject().equals(slot.getSubject()) && xslot.getTimeRange().isBefore(slot.getTimeRange())) {
-                passed +=xslot.getTimeRange().toDuration().toHours();
+                passed += xslot.getTimeRange().toDuration().toHours();
             }
         }
-        return round((((float) passed)/slot.getSubject().getHourCountMax()),2);
+        return round((((float) passed) / slot.getSubject().getHourCountMax()), 2);
     }
 
     /**
      * Returns all Groups currently stored in database
+     *
      * @return List of Group
      */
-    public static List<Group> getAllGroups(){
+    public static List<Group> getAllGroups() {
         GroupDAO dao = GroupDAO.getInstance();
         List<Group> groupList = new ArrayList<>();
         try {
             groupList = dao.getAll();
-        } catch (SQLException e){
+        } catch (SQLException e) {
             log.error(e.getMessage());
         }
 
@@ -274,14 +274,15 @@ public class Schedule implements Observable {
 
     /**
      * Returns all Classrooms currently stored in database
+     *
      * @return List of Classroom
      */
-    public static List<Classroom> getAllClassrooms(){
+    public static List<Classroom> getAllClassrooms() {
         ClassroomDAO dao = ClassroomDAO.getInstance();
         List<Classroom> classroomList = new ArrayList<>();
         try {
             classroomList = dao.getAll();
-        } catch (SQLException e){
+        } catch (SQLException e) {
             log.error(e.getMessage());
         }
         return classroomList;
@@ -289,18 +290,20 @@ public class Schedule implements Observable {
 
     /**
      * Returns all Subjects currently stored in database
+     *
      * @return List of Subject
      */
-    public static List<Subject> getAllSubjects(){
+    public static List<Subject> getAllSubjects() {
         SubjectDAO dao = SubjectDAO.getInstance();
         return dao.getAll();
     }
 
     /**
      * Returns all Professor currently stored in database
+     *
      * @return List of Professor
      */
-    public static List<Professor> getAllProfessors(){
+    public static List<Professor> getAllProfessors() {
         ProfessorDAO dao = ProfessorDAO.of();
         return dao.getAll();
     }
@@ -397,15 +400,15 @@ public class Schedule implements Observable {
             slotDAO.update(newSlot);
 
             if (professorDAO.getProfessorOfSlots(newSlot.getId()).isEmpty() && !newSlot.getProfessors().isEmpty())
-                professorDAO.save(newSlot.getId(), new long[] { newSlot.getProfessors().get(0).getId() });
-            else if(!newSlot.getProfessors().isEmpty())
+                professorDAO.save(newSlot.getId(), new long[]{newSlot.getProfessors().get(0).getId()});
+            else if (!newSlot.getProfessors().isEmpty())
                 professorDAO.update(newSlot.getId(), newSlot.getProfessors().get(0).getId());
-            else if(!oldSlot.getProfessors().isEmpty())
+            else if (!oldSlot.getProfessors().isEmpty())
                 professorDAO.delete(newSlot.getId(), oldSlot.getProfessors().get(0).getId());
 
             if (groupDAO.getGroupOfSlot(newSlot.getId()).isEmpty() && !newSlot.getGroup().isEmpty())
-                groupDAO.save(newSlot.getId(), new long[] { newSlot.getGroup().get(0).getId() });
-            else if(!newSlot.getGroup().isEmpty())
+                groupDAO.save(newSlot.getId(), new long[]{newSlot.getGroup().get(0).getId()});
+            else if (!newSlot.getGroup().isEmpty())
                 groupDAO.update(newSlot.getId(), newSlot.getGroup().get(0).getId());
         } catch (IdException | SQLException e) {
             log.error(e.getMessage());
@@ -414,26 +417,6 @@ public class Schedule implements Observable {
         schedule.notifyChanges(SLOT_EVENT, EventChange.of(EventChange.ChangeType.MODIFY, newSlot));
         return false;
     }
-
-    /**
-     * return a String with an uppercase letter at the beginning followed by
-     * lowercase letter
-     * @param str
-     * @return
-     */
-    private String upperFollowedByOnlyLower(String str){
-        return str.substring(0, 1).toUpperCase() + str.substring(1).toLowerCase();
-    }
-
-    /**
-     * simple error mesaage to keep the code DRY
-     * @param str
-     */
-    private void erroMessageForAtt(String str){
-        log.error("failed to persist" + str + ",maybe this name is already in" +
-                "the database");
-    }
-//Getter For persisted attribute of Slot
 
     /**
      * Take one String and an Int and return a persisted Group with the right format
@@ -447,11 +430,11 @@ public class Schedule implements Observable {
      * @return
      */
     public static Group addGroupInSchedule(String formation, int year) {
-        if (year<0 || year>4){
+        if (year < 0 || year > 4) {
             return addGroupInSchedule(formation);
         }
         String[] intToYear = {"L1", "l2", "l3", "M1", "M2"};
-        Group group = Group.getInstance(" " + intToYear[year]+"-"+schedule.upperFollowedByOnlyLower(formation));
+        Group group = Group.getInstance(" " + intToYear[year] + "-" + schedule.upperFollowedByOnlyLower(formation));
         if (Boolean.TRUE.equals(schedule.persistGroup(group))) {//this style of code is sonar...
             schedule.erroMessageForAtt(group.toString());
             return Group.getInstance("");
@@ -475,6 +458,7 @@ public class Schedule implements Observable {
         }
         return classroom;
     }
+//Getter For persisted attribute of Slot
 
     /**
      * Take a String and an Int and return a persisted Subject with right format
@@ -550,7 +534,7 @@ public class Schedule implements Observable {
      * @param newGroup
      * @return true in case of failure false if it's a success
      */
-    public static boolean updateGroupInSchedule(Group oldGroup,Group newGroup){
+    public static boolean updateGroupInSchedule(Group oldGroup, Group newGroup) {
         try {
             newGroup.setId(oldGroup.getId());
         } catch (IdException e) {
@@ -573,7 +557,7 @@ public class Schedule implements Observable {
      * @param newClassroom
      * @return true in case of failure false if it's a success
      */
-    public static boolean updateClassroomInSchedule(Classroom oldClassroom,Classroom newClassroom){
+    public static boolean updateClassroomInSchedule(Classroom oldClassroom, Classroom newClassroom) {
         try {
             newClassroom.setId(oldClassroom.getId());
         } catch (IdException e) {
@@ -596,7 +580,7 @@ public class Schedule implements Observable {
      * @param newSubject
      * @return true in case of failure false if it's a success
      */
-    public static boolean updateSubjectInSchedule(Subject oldSubject,Subject newSubject){
+    public static boolean updateSubjectInSchedule(Subject oldSubject, Subject newSubject) {
         try {
             newSubject.setId(oldSubject.getId());
         } catch (IdException e) {
@@ -614,8 +598,8 @@ public class Schedule implements Observable {
      * @param group
      * @return true in case of failure false if it's a success
      */
-    public static boolean deleteGroupInSchedule(Group group){
-        if (group.getId()<0){
+    public static boolean deleteGroupInSchedule(Group group) {
+        if (group.getId() < 0) {
             log.error(ERR_MSG_DELETE_UPDATE);
             return true;
         }
@@ -634,8 +618,8 @@ public class Schedule implements Observable {
      * @param subject
      * @return true in case of failure false if it's a success
      */
-    public static boolean deleteSubjectInSchedule(Subject subject){
-        if (subject.getId()<0){
+    public static boolean deleteSubjectInSchedule(Subject subject) {
+        if (subject.getId() < 0) {
             log.error(ERR_MSG_DELETE_UPDATE);
             return true;
         }
@@ -650,8 +634,8 @@ public class Schedule implements Observable {
      * @param classroom
      * @return true in case of failure false if it's a success
      */
-    public static boolean deleteClassroomInSchedule(Classroom classroom){
-        if (classroom.getId()<0){
+    public static boolean deleteClassroomInSchedule(Classroom classroom) {
+        if (classroom.getId() < 0) {
             log.error(ERR_MSG_DELETE_UPDATE);
             return true;
         }
@@ -662,6 +646,35 @@ public class Schedule implements Observable {
             return true;
         }
         return false;
+    }
+
+    public static void subscribe(String eventName, Observer observer) {
+        schedule.subscribeToEvent(eventName, observer);
+    }
+
+    public static void unsubscribe(String eventName, Observer observer) {
+        schedule.unsubscribeToEvent(eventName, observer);
+    }
+
+    /**
+     * return a String with an uppercase letter at the beginning followed by
+     * lowercase letter
+     *
+     * @param str
+     * @return
+     */
+    private String upperFollowedByOnlyLower(String str) {
+        return str.substring(0, 1).toUpperCase() + str.substring(1).toLowerCase();
+    }
+
+    /**
+     * simple error mesaage to keep the code DRY
+     *
+     * @param str
+     */
+    private void erroMessageForAtt(String str) {
+        log.error("failed to persist" + str + ",maybe this name is already in" +
+                "the database");
     }
 
     /**
@@ -693,7 +706,6 @@ public class Schedule implements Observable {
         dao.save(subject);
         return false;
     }
-
 
     /**
      * Take a classroom, persisted it and return false in case of
@@ -789,18 +801,10 @@ public class Schedule implements Observable {
         observerMap.get(eventName).add(observer);
     }
 
-    public static void subscribe(String eventName, Observer observer) {
-        schedule.subscribeToEvent(eventName, observer);
-    }
-
     @Override
     public void unsubscribeToEvent(String eventName, Observer observer) {
         if (!observerMap.containsKey(eventName)) return;
         observerMap.get(eventName).remove(observer);
-    }
-
-    public static void unsubscribe(String eventName, Observer observer) {
-        schedule.unsubscribeToEvent(eventName, observer);
     }
 
     @Override

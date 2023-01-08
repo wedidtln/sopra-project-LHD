@@ -11,10 +11,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.threeten.extra.Interval;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.time.Instant;
 import java.util.*;
 
@@ -27,7 +24,11 @@ public class SlotDAO implements DAO<Slot> {
     private static final String SAVE_STMT = "INSERT INTO SLOTS VALUES (DEFAULT,?::tstzrange,?,?,?,?)";
     private static final String UPDATE_STMT = "UPDATE SLOTS SET TIMERANGE=?::tstzrange, CLASSROOM=?, MEMO=?, SUBJECT=?, TYPE=? WHERE ID=?";
     private static final String GET_SLOT_FROM_PROFESSOR_STMT = "SELECT " + FORMATTED_SLOT + " FROM  slots JOIN professor_slot on id_slot = slots.id WHERE id_professor= (?)";//NOSONAR
+    private static final String GET_SLOT_FROM_PROFESSOR_TIME_STMT = "SELECT " + FORMATTED_SLOT + " FROM  slots JOIN professor_slot on id_slot = slots.id WHERE id_professor= (?) and lower(timerange) >= (?) and upper(timerange) < (?)";//NOSONAR
+
     private static final String GET_SLOT_FROM_GROUP_STMT = "SELECT " + FORMATTED_SLOT + " FROM  slots JOIN group_slot on id_slot = slots.id WHERE id_group= (?)";//NOSONAR
+    private static final String GET_SLOT_FROM_GROUP_TIME_STMT = "SELECT " + FORMATTED_SLOT + " FROM  slots JOIN group_slot on id_slot = slots.id WHERE id_group= (?) and lower(timerange) >= (?) and upper(timerange) < (?)";//NOSONAR
+
     private static final String GETALL_STMT = "SELECT * FROM SLOTS";//NOSONAR
     private static final String DELETE_STMT = "DELETE FROM slots WHERE id=(?)";
 
@@ -40,10 +41,11 @@ public class SlotDAO implements DAO<Slot> {
 
     /**
      * A wrapper for selection to avoid result set duplication
+     *
      * @param rs a ResultSet stemming from a query
      * @return the Slot to select
      * @throws SQLException caller to manage
-     * @throws IdException caller to manage
+     * @throws IdException  caller to manage
      */
     private Slot getFromResultSet(final ResultSet rs) throws SQLException, IdException {
         final long id = (rs.getLong("ID"));
@@ -64,22 +66,23 @@ public class SlotDAO implements DAO<Slot> {
 
     /**
      * Get a SQL query from parameters with a date-based filter
-     * @param id the id pf the slot to get
-     * @param date the date to base the filter upon
-     * @param query SQL query to be executed with passed parameters
+     *
+     * @param id        the id pf the slot to get
+     * @param timerange the date to base the filter upon
+     * @param query     SQL query to be executed with passed parameters
      * @return A set of corresponding slot entities
      * @throws SQLException if the query goes wrong
      */
-    private Set<Slot> getList(final long id, final Instant date, @NonNull final String query) throws SQLException {
+    private Set<Slot> getList(final long id, final Interval timerange, @NonNull final String query) throws SQLException {
         Slot result;
         Set<Slot> slotSet = new HashSet<>();
         try (Connection conn = Datasource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(query)
         ) {
             stmt.setLong(1, id);
-            if (date != null) {
-                java.sql.Timestamp ts = java.sql.Timestamp.from(date);
-                stmt.setTimestamp(2, ts);
+            if (timerange != null) {
+                stmt.setTimestamp(2, Timestamp.from(timerange.getStart()));
+                stmt.setTimestamp(3, Timestamp.from(timerange.getEnd()));
             }
             stmt.executeQuery();
             ResultSet rs = stmt.getResultSet();
@@ -98,7 +101,8 @@ public class SlotDAO implements DAO<Slot> {
 
     /**
      * Get a SQL query from parameters
-     * @param id the id pf the slot to get
+     *
+     * @param id    the id pf the slot to get
      * @param query SQL query to be executed with passed parameters
      * @return A set of corresponding slot entities
      * @throws SQLException if the query goes wrong
@@ -161,8 +165,12 @@ public class SlotDAO implements DAO<Slot> {
      * @return Set of slot
      * @throws SQLException if an error occurs
      */
-    public Set<Slot> getSlotOfAProfessor(Professor professor) throws SQLException {
-        return getList(professor.getId(), GET_SLOT_FROM_PROFESSOR_STMT);
+    public Set<Slot> getSlotOfAProfessor(Professor professor, Interval timerange) throws SQLException {
+        return getList(professor.getId(), timerange, GET_SLOT_FROM_PROFESSOR_TIME_STMT);
+    }
+
+    public List<Slot> getSlotOfGroup(Group group, Interval timerange) throws SQLException {
+        return List.copyOf(getList(group.getId(), timerange, GET_SLOT_FROM_GROUP_TIME_STMT));
     }
 
     private String getTimeRangeOfInterval(Interval interval) {
@@ -248,5 +256,7 @@ public class SlotDAO implements DAO<Slot> {
             throw e;
         }
     }
+
+
 }
 

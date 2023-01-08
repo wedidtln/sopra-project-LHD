@@ -170,6 +170,13 @@ class UserTest {
         User user1 = this.getInstanceOfUser();
         Assertions.assertNotEquals(null,user1);
     }
-
+@Test
+    void ShouldBeValidException() {
+        try {
+            throw new IdException("test");
+        } catch (IdException e) {
+            Assertions.assertEquals("test", e.getMessage());
+        }
+}
 
 }
